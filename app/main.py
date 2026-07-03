@@ -1,11 +1,14 @@
 from fastapi import FastAPI
+from app.api.v1.router import api_router
+from app.core.config import settings
+from app.core.constants import API_DESCRIPTION
 
 app = FastAPI(
-    title="TaskFlow Backend API",
-    description="Backend API for TaskFlow",
-    version="1.0.0",
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    description=API_DESCRIPTION,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
-
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
+app.include_router(api_router)
