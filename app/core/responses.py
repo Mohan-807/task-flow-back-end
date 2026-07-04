@@ -14,7 +14,7 @@ def success_response(
         message=message,
         data=data,
         errors=None,
-    )
+    ).model_dump(exclude_none=True)
 
 
 def error_response(
@@ -26,4 +26,4 @@ def error_response(
         message=message,
         data=None,
         errors=errors,
-    )
+    ).model_dump(exclude_none=True)
