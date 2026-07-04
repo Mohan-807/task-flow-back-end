@@ -1,12 +1,36 @@
-from sqlalchemy.orm import Session
-
 from app.repositories.user_repository import UserRepository
-from app.schemas.user import UserCreate
+from app.schemas.user import UserCreate, UserUpdate
+from app.core.exceptions import UserNotFoundException
 
 
 class UserService:
-    def __init__(self):
-        self.user_repository = UserRepository()
+    def __init__(self, user_repository: UserRepository):
+        self.user_repository = user_repository
 
-    def create_user(self, db: Session, user: UserCreate):
-        return self.user_repository.create(db, user)
+    def create_user(self, user: UserCreate):
+        return self.user_repository.create(user)
+    
+    def get_users(self):
+        return self.user_repository.get_all()
+    
+    def get_user_by_id(self, user_id: int):
+        user = self.user_repository.get_by_id(user_id)
+        if not user:
+            raise UserNotFoundException()
+        return user
+    
+    def update_user(self, user_id: int, user_update: UserUpdate):
+         user = self.user_repository.update(user_id, user_update)
+
+         if not user:
+          raise UserNotFoundException()
+
+         return user
+    
+    def delete_user(self, user_id: int):
+         user = self.user_repository.delete(user_id)
+
+         if not user:
+          raise UserNotFoundException()
+
+         return user
