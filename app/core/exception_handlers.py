@@ -34,5 +34,5 @@ def register_exception_handlers(app: FastAPI):
              content=error_response(
              message="Validation failed",
              errors=errors,
-        ).model_dump(),
+        ).model_dump(exclude_none=True),
     )
