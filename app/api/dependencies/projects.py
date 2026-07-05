@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import Depends
 
+from app.api.dependencies.activities import ActivityRepositoryDep
 from app.api.dependencies.db import DBSession
 from app.api.dependencies.users import UserRepositoryDep
 from app.repositories.project_repository import ProjectRepository
@@ -20,5 +21,6 @@ ProjectRepositoryDep = Annotated[ProjectRepository, Depends(get_project_reposito
 def get_project_service(
     project_repository: ProjectRepositoryDep,
     user_repository: UserRepositoryDep,
+    activity_repository: ActivityRepositoryDep,
 ) -> ProjectService:
-    return ProjectService(project_repository, user_repository)
+    return ProjectService(project_repository, user_repository, activity_repository)

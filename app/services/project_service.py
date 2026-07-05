@@ -2,6 +2,7 @@ import math
 
 from app.models.project import Project
 from app.models.user import User
+from app.repositories.activity_repository import ActivityRepository
 from app.repositories.project_repository import ProjectRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.common import DataListResponse, PaginatedResponse, PaginationMeta
@@ -15,21 +16,17 @@ from app.schemas.project import (
     UpdateMemberRoleRequest,
     UpdateMemberRoleResponse,
 )
+from app.core.activity_templates import STATUS_LABELS, render_activity_message
 from app.core.exceptions import (
     CannotRemoveOwnerException,
     InsufficientPermissionsException,
     NotAProjectMemberException,
-    ProjectAccessDeniedException,
     ProjectNotFoundException,
     UserAlreadyMemberException,
     UserNotFoundException,
 )
-
-_PRIVILEGED_ROLES = {"admin", "manager"}
-
-# Placeholder until Tasks (Phase 5) exists — there is no Task model yet, so
-# every project's task counts and progress are genuinely zero, not estimated.
-_ZERO_TASK_COUNTS = TaskCounts(total=0, todo=0, inProgress=0, testing=0, done=0)
+from app.services.access_control import PRIVILEGED_ROLES, check_project_access
+from app.services.task_stats import count_by_status
 
 
 class ProjectService:
@@ -37,9 +34,11 @@ class ProjectService:
         self,
         project_repository: ProjectRepository,
         user_repository: UserRepository,
+        activity_repository: ActivityRepository,
     ):
         self.project_repository = project_repository
         self.user_repository = user_repository
+        self.activity_repository = activity_repository
 
     def create_project(
         self,
@@ -56,6 +55,16 @@ class ProjectService:
             tags=project_data.tags,
             owner=current_user,
         )
+
+        self.activity_repository.create(
+            type="project_created",
+            user_id=current_user.id,
+            project_id=project.id,
+            message=render_activity_message(
+                "project_created", actor=current_user.name, project_name=project.name
+            ),
+        )
+
         return _to_response(project)
 
     def list_projects(
@@ -67,7 +76,7 @@ class ProjectService:
         page: int,
         per_page: int,
     ) -> PaginatedResponse[ProjectResponse]:
-        is_privileged = current_user.role in _PRIVILEGED_ROLES
+        is_privileged = current_user.role in PRIVILEGED_ROLES
         member_user_id = None if is_privileged else current_user.id
 
         projects, total = self.project_repository.get_filtered(
@@ -94,7 +103,7 @@ class ProjectService:
         if not project:
             raise ProjectNotFoundException()
 
-        _check_project_access(project, current_user)
+        check_project_access(project, current_user)
 
         return _to_response(project)
 
@@ -102,10 +111,13 @@ class ProjectService:
         self,
         project_id: int,
         project_update: ProjectUpdate,
+        current_user: User,
     ) -> ProjectResponse:
-        if not self.project_repository.get_by_id(project_id):
+        project = self.project_repository.get_by_id(project_id)
+        if not project:
             raise ProjectNotFoundException()
 
+        old_status = project.status
         update_fields = project_update.model_dump(exclude_unset=True)
 
         # ProjectUpdate uses the request's camelCase field name (dueDate) since
@@ -115,6 +127,25 @@ class ProjectService:
             update_fields["due_date"] = update_fields.pop("dueDate")
 
         updated_project = self.project_repository.update(project_id, update_fields)
+
+        if "status" in update_fields and update_fields["status"] != old_status:
+            self.activity_repository.create(
+                type="status_changed",
+                user_id=current_user.id,
+                project_id=updated_project.id,
+                message=render_activity_message(
+                    "status_changed",
+                    actor=current_user.name,
+                    # STATUS_LABELS only covers task statuses (todo/in_progress/...);
+                    # project status (active/completed) isn't in that map, so fall
+                    # back to a title-cased version of the raw value.
+                    new_status_label=STATUS_LABELS.get(
+                        updated_project.status,
+                        updated_project.status.replace("_", " ").title(),
+                    ),
+                ),
+            )
+
         return _to_response(updated_project)
 
     def delete_project(self, project_id: int) -> None:
@@ -131,7 +162,7 @@ class ProjectService:
         if not project:
             raise ProjectNotFoundException()
 
-        _check_project_access(project, current_user)
+        check_project_access(project, current_user)
 
         return DataListResponse(
             data=[_to_member_response(member, project) for member in project.members]
@@ -141,6 +172,7 @@ class ProjectService:
         self,
         project_id: int,
         request: AddMemberRequest,
+        current_user: User,
     ) -> DataListResponse[ProjectMemberResponse]:
         project = self.project_repository.get_by_id(project_id)
         if not project:
@@ -155,6 +187,15 @@ class ProjectService:
 
         project = self.project_repository.add_member(project, user)
 
+        self.activity_repository.create(
+            type="member_added",
+            user_id=current_user.id,
+            project_id=project.id,
+            message=render_activity_message(
+                "member_added", actor=current_user.name, member_name=user.name
+            ),
+        )
+
         return DataListResponse(
             data=[_to_member_response(member, project) for member in project.members]
         )
@@ -163,6 +204,7 @@ class ProjectService:
         self,
         project_id: int,
         user_id: int,
+        current_user: User,
     ) -> DataListResponse[ProjectMemberResponse]:
         project = self.project_repository.get_by_id(project_id)
         if not project:
@@ -175,7 +217,19 @@ class ProjectService:
         if member is None:
             raise NotAProjectMemberException()
 
+        removed_member_name = member.name
         project = self.project_repository.remove_member(project, member)
+
+        self.activity_repository.create(
+            type="member_removed",
+            user_id=current_user.id,
+            project_id=project.id,
+            message=render_activity_message(
+                "member_removed",
+                actor=current_user.name,
+                member_name=removed_member_name,
+            ),
+        )
 
         return DataListResponse(
             data=[_to_member_response(m, project) for m in project.members]
@@ -211,13 +265,6 @@ class ProjectService:
         )
 
 
-def _check_project_access(project: Project, current_user: User) -> None:
-    is_privileged = current_user.role in _PRIVILEGED_ROLES
-    is_member = any(member.id == current_user.id for member in project.members)
-    if not is_privileged and not is_member:
-        raise ProjectAccessDeniedException()
-
-
 def _to_member_response(member: User, project: Project) -> ProjectMemberResponse:
     return ProjectMemberResponse(
         id=member.id,
@@ -233,7 +280,26 @@ def _to_member_response(member: User, project: Project) -> ProjectMemberResponse
     )
 
 
+def _compute_task_counts(project: Project) -> TaskCounts:
+    by_status = count_by_status(project.tasks)
+
+    return TaskCounts(
+        total=len(project.tasks),
+        todo=by_status["todo"],
+        inProgress=by_status["in_progress"],
+        testing=by_status["testing"],
+        done=by_status["done"],
+    )
+
+
 def _to_response(project: Project) -> ProjectResponse:
+    task_counts = _compute_task_counts(project)
+    progress = (
+        round((task_counts.done / task_counts.total) * 100)
+        if task_counts.total
+        else 0
+    )
+
     return ProjectResponse(
         id=project.id,
         name=project.name,
@@ -241,13 +307,13 @@ def _to_response(project: Project) -> ProjectResponse:
         status=project.status,
         priority=project.priority,
         color=project.color,
-        progress=0,
+        progress=progress,
         startDate=project.start_date,
         dueDate=project.due_date,
         ownerId=project.owner_id,
         memberIds=[member.id for member in project.members],
         tags=project.tags,
-        tasksCount=_ZERO_TASK_COUNTS,
+        tasksCount=task_counts,
         createdAt=project.created_at,
         updatedAt=project.updated_at,
     )

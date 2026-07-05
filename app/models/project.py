@@ -36,3 +36,10 @@ class Project(Base):
     )
 
     members = relationship("User", secondary=project_members, backref="projects")
+    # cascade="all, delete-orphan" on both: spec 3.5 requires deleting a
+    # project to cascade-delete its tasks (which in turn cascade-delete their
+    # comments via Task.comments) and all activities logged against it.
+    tasks = relationship(
+        "Task", back_populates="project", cascade="all, delete-orphan"
+    )
+    activities = relationship("Activity", cascade="all, delete-orphan")

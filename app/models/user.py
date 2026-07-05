@@ -1,4 +1,5 @@
 from sqlalchemy import String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime
 from sqlalchemy import DateTime, String
@@ -32,3 +33,9 @@ class User(Base):
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
     )
+    # Nullable rather than backfilled with a server default: existing rows
+    # simply have no preferences yet, and the service layer falls back to
+    # DEFAULT_NOTIFICATION_PREFERENCES / DEFAULT_APPEARANCE_PREFERENCES when
+    # reading a user whose column is still None.
+    notification_preferences: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    appearance_preferences: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

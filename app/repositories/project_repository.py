@@ -113,3 +113,14 @@ class ProjectRepository:
         self.db.commit()
         self.db.refresh(project)
         return project
+
+    def get_all(self) -> list[Project]:
+        return self.db.query(Project).all()
+
+    def get_recent(self, member_user_id: int | None, limit: int) -> list[Project]:
+        query = self.db.query(Project)
+
+        if member_user_id is not None:
+            query = query.join(Project.members).filter(User.id == member_user_id)
+
+        return query.order_by(Project.updated_at.desc()).limit(limit).all()

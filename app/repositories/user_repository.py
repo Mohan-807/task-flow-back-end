@@ -116,3 +116,6 @@ class UserRepository:
         self.db.refresh(user)
 
         return user
+
+    def count_all(self) -> int:
+        return self.db.query(User).count()

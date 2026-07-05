@@ -58,3 +58,15 @@ class InviteUserResponse(UserResponse):
     # directly here instead of being emailed — revisit once real delivery
     # exists, and consider forcing a password change on first login then.
     temporaryPassword: str
+
+
+class UserSummary(BaseModel):
+    """Compact user shape embedded in task/kanban responses to avoid N+1 lookups."""
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    id: int
+    name: str
+    initials: str | None
+    color: str | None
+    avatarUrl: str | None = Field(validation_alias="avatar_url")
