@@ -1,30 +1,22 @@
 from fastapi import APIRouter
 
 from app.api.dependencies.types import UserServiceDep
-from app.schemas.base import ApiResponse
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
-from app.core.responses import success_response
 
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
-@router.post("", response_model=ApiResponse[UserResponse],
+@router.post("", response_model=UserResponse,
                  status_code=201,
                  summary="Create a new user",
                  description="Creates a new user in the system.",
-                 response_model_exclude_none=True
 )
 def create_user(
     user: UserCreate,
     user_service: UserServiceDep,
 ):
-    created_user = user_service.create_user(user)
-
-    return success_response(
-    message="User created successfully",
-    data=created_user,
-)
+    return user_service.create_user(user)
 
 @router.get("", response_model=list[UserResponse])
 def get_users(
