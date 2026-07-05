@@ -50,3 +50,10 @@ class UserRepository:
         self.db.commit()
 
         return user
+    
+    def get_by_email(self, email: str):
+      return (
+        self.db.query(User)
+        .filter(User.email == email)
+        .first()
+    )

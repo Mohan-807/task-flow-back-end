@@ -1,7 +1,6 @@
-from fastapi import HTTPException, status
-
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import UserCreate, UserUpdate
+from app.core.exceptions import UserNotFoundException
 
 
 class UserService:
@@ -17,14 +16,14 @@ class UserService:
     def get_user_by_id(self, user_id: int):
         user = self.user_repository.get_by_id(user_id)
         if not user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            raise UserNotFoundException()
         return user
 
     def update_user(self, user_id: int, user_update: UserUpdate):
          user = self.user_repository.update(user_id, user_update)
 
          if not user:
-          raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+          raise UserNotFoundException()
 
          return user
 
@@ -32,6 +31,6 @@ class UserService:
          user = self.user_repository.delete(user_id)
 
          if not user:
-          raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+          raise UserNotFoundException()
 
          return user
