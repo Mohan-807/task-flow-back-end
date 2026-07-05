@@ -27,3 +27,7 @@ class LoginResponse(BaseModel):
     token_type: str
     expires_in: int
     user: AuthUserResponse
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str

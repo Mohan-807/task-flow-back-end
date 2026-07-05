@@ -11,7 +11,8 @@ router = APIRouter(prefix="/users", tags=["Users"])
                  status_code=201,
                  summary="Create a new user",
                  description="Creates a new user in the system.",
-)
+            )
+
 def create_user(
     user: UserCreate,
     user_service: UserServiceDep,

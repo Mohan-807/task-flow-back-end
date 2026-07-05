@@ -1,8 +1,12 @@
+from jose import JWTError
+
+from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.core.config import settings
 from app.core.security import (
     create_access_token,
     create_refresh_token,
+    decode_token,
     hash_password,
     verify_password,
 )
@@ -15,6 +19,8 @@ from app.schemas.auth import AuthUserResponse, LoginRequest, LoginResponse
 # while "wrong password" takes ~100ms, letting an attacker enumerate registered
 # emails purely from response timing.
 _DUMMY_PASSWORD_HASH = hash_password("dummy-password-for-timing-safety")
+
+_INVALID_REFRESH_TOKEN = "Invalid or expired refresh token"
 
 
 class AuthService:
@@ -47,6 +53,34 @@ class AuthService:
         return LoginResponse(
             access_token=access_token,
             refresh_token=refresh_token,
+            token_type="bearer",
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            user=AuthUserResponse.model_validate(user),
+        )
+
+    def get_current_user_profile(self, current_user: User) -> AuthUserResponse:
+        user = self.user_repository.touch_last_active(current_user)
+        return AuthUserResponse.model_validate(user)
+
+    def refresh(self, refresh_token: str) -> LoginResponse:
+        try:
+            payload = decode_token(refresh_token)
+        except JWTError:
+            raise UnauthorizedException(_INVALID_REFRESH_TOKEN)
+
+        if payload.get("type") != "refresh":
+            raise UnauthorizedException(_INVALID_REFRESH_TOKEN)
+
+        user = self.user_repository.get_by_id(int(payload["sub"]))
+        if user is None or user.status == "inactive":
+            raise UnauthorizedException(_INVALID_REFRESH_TOKEN)
+
+        new_access_token = create_access_token(user_id=user.id, role=user.role)
+        new_refresh_token = create_refresh_token(user_id=user.id)
+
+        return LoginResponse(
+            access_token=new_access_token,
+            refresh_token=new_refresh_token,
             token_type="bearer",
             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             user=AuthUserResponse.model_validate(user),
