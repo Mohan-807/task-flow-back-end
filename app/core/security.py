@@ -1,9 +1,13 @@
+import secrets
+import string
 from datetime import datetime, timedelta, timezone
 
 from jose import jwt
 from passlib.context import CryptContext
 
 from app.core.config import settings
+
+_TEMP_PASSWORD_ALPHABET = string.ascii_letters + string.digits
 
 pwd_context = CryptContext(
     schemes=["bcrypt"],
@@ -51,3 +55,10 @@ def create_refresh_token(user_id: int) -> str:
 
 def decode_token(token: str) -> dict:
     return jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+
+
+def generate_temporary_password(length: int = 12) -> str:
+    # secrets, not random: random is predictable enough to be attacked once
+    # its internal state is inferred, which matters here since this string
+    # briefly IS a real credential.
+    return "".join(secrets.choice(_TEMP_PASSWORD_ALPHABET) for _ in range(length))

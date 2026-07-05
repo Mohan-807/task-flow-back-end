@@ -1,19 +1,36 @@
 from datetime import datetime, timezone
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.user import User
-from app.schemas.user import UserCreate, UserUpdate
 
 
 class UserRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create(self, user: UserCreate) -> User:
+    def create(
+        self,
+        *,
+        name: str,
+        email: str,
+        hashed_password: str,
+        role: str,
+        status: str,
+        department: str | None,
+        color: str,
+        initials: str,
+    ) -> User:
         db_user = User(
-            name=user.name,
-            email=user.email,
+            name=name,
+            email=email,
+            hashed_password=hashed_password,
+            role=role,
+            status=status,
+            department=department,
+            color=color,
+            initials=initials,
         )
 
         self.db.add(db_user)
@@ -22,20 +39,52 @@ class UserRepository:
 
         return db_user
     
-    def get_all(self):
-        return self.db.query(User).all()
+    def get_filtered(
+        self,
+        search: str | None,
+        role: str | None,
+        status: str | None,
+        page: int,
+        per_page: int,
+    ) -> tuple[list[User], int]:
+        query = self.db.query(User)
+
+        if search:
+            like_pattern = f"%{search}%"
+            query = query.filter(
+                or_(
+                    User.name.ilike(like_pattern),
+                    User.email.ilike(like_pattern),
+                )
+            )
+
+        if role:
+            query = query.filter(User.role == role)
+
+        if status:
+            query = query.filter(User.status == status)
+
+        total = query.count()
+        users = (
+            query.order_by(User.id)
+            .offset((page - 1) * per_page)
+            .limit(per_page)
+            .all()
+        )
+
+        return users, total
     
     def get_by_id(self, user_id:int):
          return self.db.get(User, user_id)
     
-    def update(self, user_id: int, user_update: UserUpdate):
+    def update(self, user_id: int, fields: dict) -> User | None:
         user = self.get_by_id(user_id)
 
         if not user:
             return None
 
-        user.name = user_update.name
-        user.email = user_update.email
+        for key, value in fields.items():
+            setattr(user, key, value)
 
         self.db.commit()
         self.db.refresh(user)

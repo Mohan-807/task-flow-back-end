@@ -3,7 +3,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 
 from app.api.dependencies.users import UserRepositoryDep
-from app.core.exceptions import UnauthorizedException
+from app.core.exceptions import InsufficientPermissionsException, UnauthorizedException
 from app.core.security import decode_token
 from app.models.user import User
 from app.services.auth_service import AuthService
@@ -42,3 +42,13 @@ def get_current_user(
         raise UnauthorizedException("Not authenticated")
 
     return user
+
+
+def require_roles(*allowed_roles: str):
+
+    def check_role(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role not in allowed_roles:
+            raise InsufficientPermissionsException()
+        return current_user
+
+    return check_role

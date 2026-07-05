@@ -11,7 +11,8 @@ from app.core.security import (
     verify_password,
 )
 from app.core.exceptions import InactiveAccountException, UnauthorizedException
-from app.schemas.auth import AuthUserResponse, LoginRequest, LoginResponse
+from app.schemas.auth import LoginRequest, LoginResponse
+from app.schemas.user import UserResponse
 
 # Hashed once at import time so a login attempt for a non-existent email still
 # runs a real bcrypt comparison, taking roughly the same time as a real user
@@ -55,12 +56,12 @@ class AuthService:
             refresh_token=refresh_token,
             token_type="bearer",
             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            user=AuthUserResponse.model_validate(user),
+            user=UserResponse.model_validate(user),
         )
 
-    def get_current_user_profile(self, current_user: User) -> AuthUserResponse:
+    def get_current_user_profile(self, current_user: User) -> UserResponse:
         user = self.user_repository.touch_last_active(current_user)
-        return AuthUserResponse.model_validate(user)
+        return UserResponse.model_validate(user)
 
     def refresh(self, refresh_token: str) -> LoginResponse:
         try:
@@ -83,5 +84,5 @@ class AuthService:
             refresh_token=new_refresh_token,
             token_type="bearer",
             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            user=AuthUserResponse.model_validate(user),
+            user=UserResponse.model_validate(user),
         )

@@ -1,12 +1,8 @@
 from fastapi import APIRouter
 
 from app.api.dependencies.types import AuthServiceDep, CurrentUserDep
-from app.schemas.auth import (
-    AuthUserResponse,
-    LoginRequest,
-    LoginResponse,
-    RefreshTokenRequest,
-)
+from app.schemas.auth import LoginRequest, LoginResponse, RefreshTokenRequest
+from app.schemas.user import UserResponse
 
 router = APIRouter(
     prefix="/auth",
@@ -22,7 +18,7 @@ def login(
     return auth_service.login(login_request)
 
 
-@router.get("/me", response_model=AuthUserResponse)
+@router.get("/me", response_model=UserResponse)
 def get_me(
     current_user: CurrentUserDep,
     auth_service: AuthServiceDep,
