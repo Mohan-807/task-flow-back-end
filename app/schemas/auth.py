@@ -12,13 +12,13 @@ class AuthUserResponse(BaseModel):
     name: str
     email: EmailStr
     role: str
-    avatarUrl: str | None = Field(alias="avatar_url")
+    avatarUrl: str | None = Field(validation_alias="avatar_url")
     initials: str
     color: str
     status: str
     department: str | None
-    joinedAt: datetime = Field(alias="joined_at")
-    lastActiveAt: datetime | None = Field(alias="last_active_at")
+    joinedAt: datetime = Field(validation_alias="joined_at")
+    lastActiveAt: datetime | None = Field(validation_alias="last_active_at")
 
 
 class LoginResponse(BaseModel):

@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from app.models.user import User
@@ -57,3 +59,11 @@ class UserRepository:
         .filter(User.email == email)
         .first()
     )
+
+    def touch_last_active(self, user: User) -> User:
+        user.last_active_at = datetime.now(timezone.utc)
+
+        self.db.commit()
+        self.db.refresh(user)
+
+        return user

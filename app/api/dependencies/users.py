@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import Depends
 from app.api.dependencies.db import DBSession
 
@@ -11,7 +13,10 @@ def get_user_repository(
     return UserRepository(db)
 
 
+UserRepositoryDep = Annotated[UserRepository, Depends(get_user_repository)]
+
+
 def get_user_service(
-    user_repository: UserRepository = Depends(get_user_repository),
+    user_repository: UserRepositoryDep,
 ) -> UserService:
     return UserService(user_repository)
